@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bench — JavaScript Benchmark Playground</title>
+  <meta name="description" content="Race JavaScript snippets head-to-head. Write code, benchmark it, see ops/sec with live results.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a26;
+      --border: #2a2a3a;
+      --text: #e4e4ef;
+      --text-dim: #8888a0;
+      --accent-a: #6366f1;
+      --accent-a-glow: #6366f140;
+      --accent-b: #f472b6;
+      --accent-b-glow: #f472b640;
+      --green: #34d399;
+      --red: #f87171;
+      --yellow: #fbbf24;
+      --radius: 12px;
+      --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+      --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      padding: 2rem 2rem 1rem;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header p {
+      color: var(--text-dim);
+      font-size: 1rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Main layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem 2rem 3rem;
+    }
+
+    /* Controls bar */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .controls label {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .controls input[type="number"] {
+      width: 80px;
+      padding: 0.4rem 0.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+    }
+
+    .controls select {
+      padding: 0.4rem 0.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.5rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-run {
+      background: linear-gradient(135deg, var(--accent-a), #818cf8);
+      color: white;
+      box-shadow: 0 4px 20px var(--accent-a-glow);
+    }
+
+    .btn-run:hover { transform: translateY(-1px); box-shadow: 0 6px 30px var(--accent-a-glow); }
+    .btn-run:active { transform: translateY(0); }
+    .btn-run:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-reset {
+      background: var(--surface-2);
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .btn-reset:hover { color: var(--text); border-color: var(--text-dim); }
+
+    /* Editor panels */
+    .editors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .editors { grid-template-columns: 1fr; }
+      .header h1 { font-size: 1.8rem; }
+      .container { padding: 1rem; }
+    }
+
+    .editor-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+
+    .editor-panel:focus-within {
+      border-color: var(--accent-a);
+    }
+
+    .editor-panel:nth-child(2):focus-within {
+      border-color: var(--accent-b);
+    }
+
+    .editor-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .editor-label .tag {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .editor-panel:first-child .tag { color: var(--accent-a); }
+    .editor-panel:nth-child(2) .tag { color: var(--accent-b); }
+
+    .editor-label .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .editor-panel:first-child .dot { background: var(--accent-a); }
+    .editor-panel:nth-child(2) .dot { background: var(--accent-b); }
+
+    .editor-label input {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 0.85rem;
+      text-align: right;
+      width: 140px;
+      outline: none;
+    }
+
+    .editor-label input::placeholder { color: var(--text-dim); }
+
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 1rem;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      tab-size: 2;
+    }
+
+    /* Setup code */
+    .setup-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .setup-toggle {
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      user-select: none;
+    }
+
+    .setup-toggle:hover { color: var(--text); }
+    .setup-toggle .arrow { transition: transform 0.2s; font-size: 0.7rem; }
+    .setup-toggle .arrow.open { transform: rotate(90deg); }
+
+    .setup-body {
+      display: none;
+      border-top: 1px solid var(--border);
+    }
+
+    .setup-body.open { display: block; }
+
+    .setup-body textarea {
+      min-height: 100px;
+    }
+
+    /* Results */
+    .results {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      min-height: 120px;
+    }
+
+    .results-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .results-empty {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-row:last-child { margin-bottom: 0; }
+
+    .result-name {
+      min-width: 100px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .result-row:first-child .result-name { color: var(--accent-a); }
+    .result-row:nth-child(2) .result-name { color: var(--accent-b); }
+
+    .result-bar-wrap {
+      flex: 1;
+      height: 36px;
+      background: var(--surface-2);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .result-bar {
+      height: 100%;
+      border-radius: 8px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 0.75rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: white;
+      min-width: fit-content;
+    }
+
+    .result-row:first-child .result-bar {
+      background: linear-gradient(90deg, var(--accent-a), #818cf8);
+    }
+
+    .result-row:nth-child(2) .result-bar {
+      background: linear-gradient(90deg, var(--accent-b), #e879a8);
+    }
+
+    .result-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .badge-winner { background: var(--green); color: #0a0a0f; }
+    .badge-slower { background: var(--surface-2); color: var(--text-dim); }
+
+    /* Running indicator */
+    .running-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 2rem;
+      color: var(--text-dim);
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent-a);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Presets */
+    .presets {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      justify-content: center;
+    }
+
+    .preset-btn {
+      padding: 0.35rem 0.75rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .preset-btn:hover {
+      color: var(--text);
+      border-color: var(--accent-a);
+      background: var(--accent-a-glow);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    .footer a { color: var(--accent-a); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* Error display */
+    .error-msg {
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 0.75rem 1rem;
+      background: #f8717115;
+      border-radius: 8px;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ Bench</h1>
+  <p>JavaScript Benchmark Playground — race your code snippets</p>
+</div>
+
+<div class="container">
+
+  <!-- Presets -->
+  <div class="presets">
+    <button class="preset-btn" data-preset="loop">for vs forEach</button>
+    <button class="preset-btn" data-preset="spread">spread vs concat</button>
+    <button class="preset-btn" data-preset="map">Map vs Object</button>
+    <button class="preset-btn" data-preset="string">template vs concat</button>
+    <button class="preset-btn" data-preset="clone">structuredClone vs JSON</button>
+    <button class="preset-btn" data-preset="find">find vs indexOf</button>
+    <button class="preset-btn" data-preset="set">Set.has vs Array.includes</button>
+  </div>
+
+  <!-- Setup code -->
+  <div class="setup-panel">
+    <div class="setup-toggle" id="setupToggle">
+      <span class="arrow" id="setupArrow">▶</span>
+      <span>Setup Code</span>
+      <span style="color: var(--text-dim); font-size: 0.75rem; margin-left: 0.5rem;">(runs before each snippet)</span>
+    </div>
+    <div class="setup-body" id="setupBody">
+      <textarea id="setupCode" placeholder="// Shared setup code runs before each benchmark...&#10;// e.g., const arr = Array.from({length: 1000}, (_, i) => i);"></textarea>
+    </div>
+  </div>
+
+  <!-- Editors -->
+  <div class="editors">
+    <div class="editor-panel">
+      <div class="editor-label">
+        <span class="tag"><span class="dot"></span> Snippet A</span>
+        <input type="text" id="nameA" placeholder="Name..." value="Snippet A">
+      </div>
+      <textarea id="codeA" placeholder="// Write your first code snippet here...&#10;// Example: arr.map(x => x * 2);" spellcheck="false"></textarea>
+    </div>
+    <div class="editor-panel">
+      <div class="editor-label">
+        <span class="tag"><span class="dot"></span> Snippet B</span>
+        <input type="text" id="nameB" placeholder="Name..." value="Snippet B">
+      </div>
+      <textarea id="codeB" placeholder="// Write your second code snippet here...&#10;// Example: arr.forEach((x, i, a) => a[i] = x * 2);" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <label>
+      Iterations:
+      <input type="number" id="iterations" value="10000" min="100" max="100000000" step="1000">
+    </label>
+    <label>
+      Rounds:
+      <input type="number" id="rounds" value="5" min="1" max="50">
+    </label>
+    <button class="btn btn-run" id="runBtn" onclick="runBenchmark()">
+      ⚡ Run Benchmark
+    </button>
+    <button class="btn btn-reset" onclick="resetAll()">Reset</button>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="results-title">Results</div>
+    <div class="results-empty">Click "Run Benchmark" to race your snippets ⚡</div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Built by <a href="https://entazis.dev">entazis.dev</a> · 
+  All benchmarks run locally in your browser
+</div>
+
+<!-- Tracking -->
+<script>
+(function() {
+  const site = 'bench';
+  const page = location.pathname || '/';
+  fetch('/api/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      metrics: [{
+        name: 'web_page_visits',
+        type: 'counter',
+        value: 1,
+        labels: { site, page }
+      }]
+    })
+  }).catch(() => {});
+})();
+</script>
+
+<script>
+// --- Presets ---
+const PRESETS = {
+  loop: {
+    setup: 'const arr = Array.from({length: 1000}, (_, i) => i);',
+    nameA: 'for loop',
+    codeA: 'let sum = 0;\nfor (let i = 0; i < arr.length; i++) {\n  sum += arr[i];\n}',
+    nameB: 'forEach',
+    codeB: 'let sum = 0;\narr.forEach(x => { sum += x; });'
+  },
+  spread: {
+    setup: 'const a = [1, 2, 3, 4, 5];\nconst b = [6, 7, 8, 9, 10];',
+    nameA: 'spread',
+    codeA: 'const c = [...a, ...b];',
+    nameB: 'concat',
+    codeB: 'const c = a.concat(b);'
+  },
+  map: {
+    setup: '',
+    nameA: 'Map',
+    codeA: 'const m = new Map();\nfor (let i = 0; i < 100; i++) m.set("key" + i, i);\nfor (let i = 0; i < 100; i++) m.get("key" + i);',
+    nameB: 'Object',
+    codeB: 'const o = {};\nfor (let i = 0; i < 100; i++) o["key" + i] = i;\nfor (let i = 0; i < 100; i++) o["key" + i];'
+  },
+  string: {
+    setup: 'const name = "World";\nconst count = 42;',
+    nameA: 'template literal',
+    codeA: 'const s = `Hello ${name}, count is ${count}!`;',
+    nameB: 'string concat',
+    codeB: 'const s = "Hello " + name + ", count is " + count + "!";'
+  },
+  clone: {
+    setup: 'const obj = { a: 1, b: { c: [1, 2, 3], d: "hello" }, e: true };',
+    nameA: 'structuredClone',
+    codeA: 'const copy = structuredClone(obj);',
+    nameB: 'JSON round-trip',
+    codeB: 'const copy = JSON.parse(JSON.stringify(obj));'
+  },
+  find: {
+    setup: 'const arr = Array.from({length: 1000}, (_, i) => i);\nconst target = 750;',
+    nameA: 'Array.find',
+    codeA: 'const r = arr.find(x => x === target);',
+    nameB: 'Array.indexOf',
+    codeB: 'const r = arr.indexOf(target);'
+  },
+  set: {
+    setup: 'const arr = Array.from({length: 1000}, (_, i) => i);\nconst set = new Set(arr);\nconst target = 750;',
+    nameA: 'Set.has',
+    codeA: 'const r = set.has(target);',
+    nameB: 'Array.includes',
+    codeB: 'const r = arr.includes(target);'
+  }
+};
+
+// --- Setup toggle ---
+document.getElementById('setupToggle').addEventListener('click', () => {
+  const body = document.getElementById('setupBody');
+  const arrow = document.getElementById('setupArrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+});
+
+// --- Presets ---
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    document.getElementById('setupCode').value = p.setup;
+    document.getElementById('codeA').value = p.codeA;
+    document.getElementById('codeB').value = p.codeB;
+    document.getElementById('nameA').value = p.nameA;
+    document.getElementById('nameB').value = p.nameB;
+    if (p.setup) {
+      document.getElementById('setupBody').classList.add('open');
+      document.getElementById('setupArrow').classList.add('open');
+    }
+    // Reset results
+    showEmpty();
+  });
+});
+
+// --- Tab key in textareas ---
+document.querySelectorAll('textarea').forEach(ta => {
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + 2;
+    }
+  });
+});
+
+function showEmpty() {
+  document.getElementById('results').innerHTML = `
+    <div class="results-title">Results</div>
+    <div class="results-empty">Click "Run Benchmark" to race your snippets ⚡</div>
+  `;
+}
+
+function resetAll() {
+  document.getElementById('setupCode').value = '';
+  document.getElementById('codeA').value = '';
+  document.getElementById('codeB').value = '';
+  document.getElementById('nameA').value = 'Snippet A';
+  document.getElementById('nameB').value = 'Snippet B';
+  document.getElementById('iterations').value = '10000';
+  document.getElementById('rounds').value = '5';
+  showEmpty();
+}
+
+function formatOps(ops) {
+  if (ops >= 1e9) return (ops / 1e9).toFixed(2) + 'B ops/s';
+  if (ops >= 1e6) return (ops / 1e6).toFixed(2) + 'M ops/s';
+  if (ops >= 1e3) return (ops / 1e3).toFixed(2) + 'K ops/s';
+  return ops.toFixed(0) + ' ops/s';
+}
+
+async function runBenchmark() {
+  const btn = document.getElementById('runBtn');
+  const resultsEl = document.getElementById('results');
+  
+  const codeA = document.getElementById('codeA').value.trim();
+  const codeB = document.getElementById('codeB').value.trim();
+  const setup = document.getElementById('setupCode').value.trim();
+  const nameA = document.getElementById('nameA').value || 'Snippet A';
+  const nameB = document.getElementById('nameB').value || 'Snippet B';
+  const iterations = parseInt(document.getElementById('iterations').value) || 10000;
+  const rounds = parseInt(document.getElementById('rounds').value) || 5;
+  
+  if (!codeA && !codeB) {
+    resultsEl.innerHTML = `
+      <div class="results-title">Results</div>
+      <div class="error-msg">Write some code in at least one snippet to benchmark.</div>
+    `;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running...';
+  
+  resultsEl.innerHTML = `
+    <div class="results-title">Results</div>
+    <div class="running-indicator">
+      <div class="spinner"></div>
+      <span>Warming up and running ${rounds} rounds of ${iterations.toLocaleString()} iterations...</span>
+    </div>
+  `;
+
+  // Track benchmark run
+  fetch('/api/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      metrics: [{
+        name: 'web_events',
+        type: 'counter',
+        value: 1,
+        labels: { site: 'bench', action: 'benchmark_run', category: 'interaction' }
+      }]
+    })
+  }).catch(() => {});
+
+  // Yield to UI
+  await new Promise(r => setTimeout(r, 50));
+
+  try {
+    const runSnippet = (code, iters) => {
+      if (!code) return Infinity;
+      const fn = new Function(setup + '\n' + `
+        const __start = performance.now();
+        for (let __i = 0; __i < ${iters}; __i++) {
+          ${code}
+        }
+        return performance.now() - __start;
+      `);
+      return fn();
+    };
+
+    // Warmup
+    if (codeA) runSnippet(codeA, Math.min(iterations, 1000));
+    if (codeB) runSnippet(codeB, Math.min(iterations, 1000));
+    await new Promise(r => setTimeout(r, 10));
+
+    let timesA = [];
+    let timesB = [];
+
+    for (let r = 0; r < rounds; r++) {
+      // Alternate order to reduce bias
+      if (r % 2 === 0) {
+        if (codeA) timesA.push(runSnippet(codeA, iterations));
+        if (codeB) timesB.push(runSnippet(codeB, iterations));
+      } else {
+        if (codeB) timesB.push(runSnippet(codeB, iterations));
+        if (codeA) timesA.push(runSnippet(codeA, iterations));
+      }
+      await new Promise(r => setTimeout(r, 5));
+    }
+
+    // Median time
+    const median = arr => {
+      const s = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    };
+
+    const medA = codeA ? median(timesA) : Infinity;
+    const medB = codeB ? median(timesB) : Infinity;
+
+    const opsA = codeA ? (iterations / (medA / 1000)) : 0;
+    const opsB = codeB ? (iterations / (medB / 1000)) : 0;
+
+    const maxOps = Math.max(opsA, opsB);
+    const pctA = maxOps ? (opsA / maxOps) * 100 : 0;
+    const pctB = maxOps ? (opsB / maxOps) * 100 : 0;
+
+    const winner = opsA > opsB ? 'A' : opsB > opsA ? 'B' : 'tie';
+    const ratio = winner === 'A' ? (opsA / opsB) : winner === 'B' ? (opsB / opsA) : 1;
+
+    let html = `<div class="results-title">Results · ${rounds} rounds × ${iterations.toLocaleString()} iterations</div>`;
+
+    if (codeA) {
+      html += `
+        <div class="result-row">
+          <div class="result-name">${escHtml(nameA)}</div>
+          <div class="result-bar-wrap">
+            <div class="result-bar" style="width: ${Math.max(pctA, 8)}%">${formatOps(opsA)}</div>
+          </div>
+          <span class="result-badge ${winner === 'A' ? 'badge-winner' : 'badge-slower'}">
+            ${winner === 'A' ? '👑 fastest' : winner === 'tie' ? '🤝 tie' : (ratio === Infinity ? '—' : (100 - (opsA/opsB)*100).toFixed(1) + '% slower')}
+          </span>
+        </div>
+      `;
+    }
+
+    if (codeB) {
+      html += `
+        <div class="result-row">
+          <div class="result-name">${escHtml(nameB)}</div>
+          <div class="result-bar-wrap">
+            <div class="result-bar" style="width: ${Math.max(pctB, 8)}%">${formatOps(opsB)}</div>
+          </div>
+          <span class="result-badge ${winner === 'B' ? 'badge-winner' : 'badge-slower'}">
+            ${winner === 'B' ? '👑 fastest' : winner === 'tie' ? '🤝 tie' : (ratio === Infinity ? '—' : (100 - (opsB/opsA)*100).toFixed(1) + '% slower')}
+          </span>
+        </div>
+      `;
+    }
+
+    if (winner !== 'tie' && ratio !== Infinity && codeA && codeB) {
+      const winnerName = winner === 'A' ? nameA : nameB;
+      html += `<p style="margin-top: 1rem; color: var(--text-dim); font-size: 0.85rem; text-align: center;">
+        <strong style="color: var(--green)">${escHtml(winnerName)}</strong> is <strong>${ratio.toFixed(2)}×</strong> faster
+      </p>`;
+    }
+
+    resultsEl.innerHTML = html;
+
+  } catch (err) {
+    resultsEl.innerHTML = `
+      <div class="results-title">Results</div>
+      <div class="error-msg">Error: ${escHtml(err.message)}</div>
+    `;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '⚡ Run Benchmark';
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+
+</body>
+</html>
